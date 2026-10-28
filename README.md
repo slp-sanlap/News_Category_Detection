@@ -1,4 +1,3 @@
-# News_Category_Detection_MS24011
 # News Category Classification Using Machine Learning
 
 ## About the Project
