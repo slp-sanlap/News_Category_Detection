@@ -47,17 +47,12 @@ All three models are evaluated using the same train-test split so their results 
 - Scikit-learn
 - Jupyter Notebook / Google Colab
 
-## How to Run the Project
+## How to Run the Project in Google Colab
 
 1. Clone or download this repository.
-2. Download the dataset and place `News_Category_Dataset_v3.json` in the same directory as the notebook.
-3. Install the required libraries:
+2. Download the dataset and place `News_Category_Dataset_v3.json` from the Raw data folder.
 
-   ```bash
-   pip install pandas numpy matplotlib scikit-learn jupyter
-   ```
-
-4. Open `News_Category_Project.ipynb` in Jupyter Notebook or upload it to Google Colab.
+4. Open `News_Category_Project.ipynb` in Google Colab.
 5. Run the notebook cells in order, starting with data loading and EDA and continuing through model training and evaluation.
 
 
