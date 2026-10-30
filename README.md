@@ -367,7 +367,7 @@ News-Category-Classification-Project/
     └── median_length_by_category.png
 ```
 
-The dataset file `News_Category_Dataset_v3.json` is not included in the image archive. It must be obtained separately and placed at the path expected by the notebook.
+
 
 ## 17. Group Member
 1. Sanlap Tarafder (MS24011)
