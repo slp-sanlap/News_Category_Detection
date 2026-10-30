@@ -369,29 +369,10 @@ News-Category-Classification-Project/
 
 The dataset file `News_Category_Dataset_v3.json` is not included in the image archive. It must be obtained separately and placed at the path expected by the notebook.
 
-## 17. How to Run the Project
-
-1. Clone or download the repository:
-
-```bash
-git clone <your-repository-link>
-```
-
-2. Install the required libraries:
-
-```bash
-pip install pandas numpy matplotlib scikit-learn jupyter
-```
-
-3. Obtain `News_Category_Dataset_v3.json` and place it in the working directory expected by the notebook.
-
-4. Open the notebook:
-
-```bash
-jupyter notebook
-```
-
-5. Open `News_Category_Project(1).ipynb` and run the cells in sequence, starting with data loading and EDA, followed by preprocessing, TF-IDF, model training, evaluation, and error analysis.
+## 17. Group Member
+1. Sanlap Tarafder (MS24011)
+2. Chayan Banerjee (MS24013)
+3. Surajit Shit    (MS24169)
 
 ## 18. Conclusion
 
