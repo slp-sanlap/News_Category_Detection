@@ -1,214 +1,402 @@
-News Category Classification
+# News Category Classification Using Machine Learning
 
-Classifying news articles into 42 categories from their headline and short description, using TF-IDF features and three classical machine-learning models (Multinomial Naive Bayes, Logistic Regression, Linear SVM).
+## 1. Project Overview
 
-Data Science course project · Notebook: News_Category_Project.ipynb
+This project explores the use of Natural Language Processing (NLP) and machine learning to classify news articles into **42 different news categories** using the News Category Dataset (HuffPost).
 
-Table of Contents
-Overview
-Dataset
-Pipeline
-Data Cleaning
-Exploratory Data Analysis
-Feature Extraction
-Models
-Results
-Error Analysis
-Key Takeaways and Limitations
-How to Run
-Output Files
-Overview
+The project follows an end-to-end workflow: dataset inspection, duplicate and missing-value analysis, headline and description cleaning, exploratory data analysis (EDA), TF-IDF feature extraction, model training, evaluation, and misclassification analysis.
 
-The goal is to predict an article's category (e.g. POLITICS, TRAVEL, WELLNESS) from its text. The project covers:
+The classification task is **multi-class classification**: the model predicts a news category (for example, POLITICS, WELLNESS, ENTERTAINMENT, or TRAVEL), rather than classifying an article as fake or real.
 
-cleaning a raw news dataset (duplicates, empty text, URLs, conflicting labels),
-exploratory analysis of class balance and text length,
-TF-IDF feature extraction with unigrams and bigrams,
-training and comparing three classifiers against a majority-class baseline,
-error analysis with confusion matrices and top terms per category,
-an extension comparing headline only vs headline + description as input.
-Dataset
-File: News_Category_Dataset_v3.json (JSON Lines, read with pd.read_json(..., lines=True))
-Raw size: 209,527 rows × 6 columns: link, headline, category, short_description, authors, date
-Target: category (42 classes in the raw data)
+## 2. Project Objectives
 
-The dataset file is not included in this repository because of its size. Place it in the project root before running the notebook.
+- Inspect and understand the structure of the news dataset.
+- Explore category distribution and identify class imbalance.
+- Examine duplicate rows, repeated headlines, and headlines associated with multiple categories.
+- Investigate headline and description lengths, outliers, missing values, and empty text.
+- Clean headline and description text, including lowercasing and URL removal.
+- Convert text into numerical features using TF-IDF.
+- Train and compare Multinomial Naive Bayes, Logistic Regression, and Linear SVM.
+- Evaluate model performance using accuracy, macro precision, macro recall, macro F1, and weighted F1.
+- Inspect confusion matrices and misclassified examples.
+- Compare headline-only input with combined headline-and-description input.
 
-Pipeline
-Raw JSON209,527 rows
-Cleaningduplicates, empty text,URLs, lowercase
-EDA208,102 rows
-Combine headline+ description
-80/20 stratified split
-TF-IDF1-2 grams, 100k features
-Naive Bayes
-Logistic Regression
-Linear SVM
-Evaluation+ error analysis
-Data Cleaning
-Step	What was done	Effect
-Exact duplicates	drop_duplicates()	13 duplicate rows removed (209,527 → 209,514)
-Empty headlines	Dropped rows with blank headlines	6 rows with 0 words removed (→ 209,508)
-Repeated headline + category pairs	drop_duplicates(subset=["headline","category"])	Final dataset: 208,102 rows
-Conflicting labels	Same headline appearing under different categories was kept, since these are genuinely different articles	102 such headlines remain
-Case normalisation	Lowercased headline and description; category uppercased	
-URL removal	Regex https?://\S+|(?<!\w)www\.\S+	2 headlines and 152 descriptions contained URL-like text
-Whitespace	Collapsed repeated spaces and trimmed	
-Missing values	Checked every column	None after cleaning
+## 3. Dataset Description
 
-Outlier check on headline length used the IQR rule. Single-word headlines were inspected and judged not useful, while unusually long headlines were judged valuable and kept.
+**Dataset file:** `News_Category_Dataset_v3.json`
 
-Exploratory Data Analysis
-Class distribution
+The dataset was loaded as newline-delimited JSON using Pandas (`pd.read_json(..., lines=True)`).
 
-Before cleaning, POLITICS is the largest class and EDUCATION the smallest.
+The original dataset contained **209,527 rows** and six columns:
 
-Raw category distribution
+| Column | Description |
+|---|---|
+| `link` | Link to the news article |
+| `headline` | News headline |
+| `category` | News category label |
+| `short_description` | Short description of the article |
+| `authors` | Article author information |
+| `date` | Publication date |
 
-After cleaning, the shape is the same. POLITICS has 35,478 articles (17.05% of the data) and EDUCATION has 1,014, so the dataset is clearly imbalanced (largest/smallest ratio is about 35:1).
+The task uses the `category` column as the target label and the cleaned headline and short description as text input.
 
-Category distribution after cleaning
+## 4. Data Cleaning and Initial Inspection
 
-Headline length
+### 4.1 Duplicate Analysis
 
-Headlines average about 9.6 words (median 10) and range from 1 to 44 words.
+The initial inspection found **13 exact duplicate rows**. These were removed.
 
-Headline length histogram
+Repeated headlines were then examined separately:
 
-Headline vs description length
-Metric	Mean	Median	Max
-Headline words	9.61	10	44
-Description words	19.61	19	241
+- Repeated headline rows: 1,513
+- Unique headline values: 207,995
+- Headlines associated with more than one category: 102
 
-About 19,603 rows (9.42%) have an empty description. The model input falls back to the headline for those rows.
+Duplicate headline-category pairs were removed while retaining headlines that appeared under different categories. After this cleaning step, the dataset contained **208,102 rows**.
 
-Word-count distributions
+This distinction matters: the same headline can occur in more than one category, so repeated headlines were not automatically treated as identical records.
 
-Text length by category
+### 4.2 Missing and Empty Values
 
-Description length differs a lot between categories. ENTERTAINMENT and COMEDY have short descriptions (median 10 words), while WELLNESS and PARENTING have long ones (median 26 and 25).
+The final EDA snapshot reported:
 
-Median length by category
+| Check | Result |
+|---|---:|
+| Rows after cleaning | 208,102 |
+| Number of categories | 42 |
+| Duplicate full rows | 0 |
+| Missing headlines | 0 |
+| Empty/whitespace headlines | 0 |
+| Missing descriptions (`NaN`) | 0 |
+| Empty/whitespace descriptions | 19,603 |
 
-Feature Extraction (TF-IDF)
+Although no descriptions were missing as `NaN`, 19,603 descriptions were empty or contained only whitespace (approximately 9.42% of the dataset).
 
-Headline and description are joined into one combined_text field, split 80/20 with random_state=42 and stratified by category.
+## 5. Exploratory Data Analysis (EDA)
 
-Setting	Value
-Train / test rows	166,481 / 41,621
-ngram_range	(1, 2)
-stop_words	english
-min_df / max_df	2 / 0.98
-max_features	100,000
-sublinear_tf	True
-Train matrix shape	(166,481 × 100,000)
+### 5.1 Raw Category Distribution
 
-Highest-weighted terms per category (full table in top_tfidf_terms_by_category.csv) are sensible, for example art, artist, artists for ARTS, college, students for COLLEGE, and black, police, white for BLACK VOICES.
+The first bar chart shows the category distribution before the cleaning steps. It provides an initial view of the frequency differences between news categories.
 
-Models
-Model	Key hyperparameters
-Multinomial Naive Bayes	alpha=0.5
-Logistic Regression	C=4.0, solver="lbfgs", max_iter=200
-Linear SVM (LinearSVC)	C=1.0, max_iter=5000
+![Raw category distribution](Images/category_distribution_raw.png.png)
 
-All three were trained on the same TF-IDF features and evaluated on the same held-out test set.
+### 5.2 Category Distribution After Cleaning
 
-Results
-Overall comparison
-Model	Accuracy	Macro Precision	Macro Recall	Macro F1	Weighted F1
-Logistic Regression	0.6219	0.5571	0.4571	0.4891	0.6046
-Linear SVM	0.6156	0.5277	0.4601	0.4832	0.5998
-Multinomial Naive Bayes	0.4853	0.6040	0.1999	0.2119	0.3947
-Majority baseline (POLITICS)	0.1705	0.0041	0.0238	0.0069	0.0497
+After removing exact duplicate rows and duplicate headline-category pairs, the category distribution was plotted again.
 
-Model comparison
+The cleaned dataset contains 42 categories. **POLITICS** is the most frequent category, with 35,478 records, while **EDUCATION** is the least frequent, with 1,014 records.
 
-Logistic Regression is the best model on macro F1 and accuracy, with Linear SVM a close second and about 3x faster to train (about 135 s vs about 390 s). Both are far above the 17% majority baseline. Naive Bayes has the highest macro precision but a very low macro recall: it predicts the large classes (POLITICS, WELLNESS, ENTERTAINMENT) far too often and almost never predicts small ones.
+![Category distribution after cleaning](Images/category_distribution_clean.png)
 
-Headline only vs headline + description
-Model	Input	Accuracy	Macro F1	Weighted F1
-Logistic Regression	Headline + description	0.6219	0.4891	0.6046
-Logistic Regression	Headline only	0.5919	0.4650	0.5748
-Linear SVM	Headline + description	0.6156	0.4832	0.5998
-Linear SVM	Headline only	0.5875	0.4570	0.5723
-Naive Bayes	Headline + description	0.4853	0.2119	0.3947
-Naive Bayes	Headline only	0.4645	0.2096	0.3807
+The largest category accounts for approximately 17.05% of the cleaned dataset. The category counts are therefore imbalanced, with POLITICS appearing much more frequently than several smaller categories.
 
-Adding the description improves accuracy by roughly 2 to 3 percentage points for every model.
+### 5.3 Headline Length Distribution
 
-Confusion matrices
+Headline length was examined using character counts and word counts. The notebook also used the interquartile range (IQR) method to inspect unusually short and long headlines.
 
-Rows are the actual category and columns the predicted category. A strong diagonal means correct predictions.
+For headline character length, the calculated IQR boundaries were:
 
-1. Multinomial Naive Bayes: 21,424 of 41,621 test rows misclassified. Almost everything gets pushed into POLITICS, WELLNESS and ENTERTAINMENT.
+- Lower boundary: 8.5 characters
+- Upper boundary: 108.5 characters
 
-Naive Bayes confusion matrix
+The outlier inspection showed that some very short headlines contained only one word, while longer headlines could still contain useful information. The notebook therefore examined the examples rather than assuming that every long headline should be removed.
 
-2. Logistic Regression: 15,737 misclassified.
+![Headline length histogram](Images/headline_length_histogram.png)
 
-Logistic Regression confusion matrix
+After the headline cleaning and quality checks, the median headline length was **10 words**.
 
-3. Linear SVM: 15,998 misclassified.
+### 5.4 Headline and Description Lengths
 
-Linear SVM confusion matrix
+The notebook compared headline and description lengths using word-count and character-count statistics.
 
-4. Best model (Logistic Regression), final evaluation: the same matrix regenerated in the final evaluation section, with the full table saved to best_model_confusion_matrix.csv.
+| Measure | Headline | Short description |
+|---|---:|---:|
+| Mean word count | 9.61 | 19.61 |
+| Median word count | 10 | 19 |
+| Mean character count | 58.47 | 113.87 |
+| Median character count | 60 | 120 |
 
-Best model confusion matrix
+The distributions show that short descriptions generally contain more words than headlines.
 
-Figure index
-#	Figure	Section
-1	Raw category distribution	EDA
-2	Headline length histogram	EDA
-3	Category distribution after cleaning	EDA
-4	Headline and description word counts	EDA
-5	Median length by category	EDA
-6	Naive Bayes confusion matrix	Results
-7	Linear SVM confusion matrix	Results
-8	Logistic Regression confusion matrix	Results
-9	Best-model confusion matrix	Results
-10	Model comparison bar chart	Results
-Error Analysis
+### 5.5 Median Length by Category
 
-Reading the Logistic Regression confusion matrix, most mistakes come from categories that overlap in meaning, not from random noise:
+Median headline and description word counts were compared across categories. This helps examine whether different news categories tend to use different headline or description lengths.
 
-HEALTHY LIVING is often predicted as WELLNESS (610 cases), and WELLNESS as HEALTHY LIVING (243).
-PARENTS is confused with PARENTING (339 and 118 cases).
-TASTE is predicted as FOOD & DRINK (227 cases), and STYLE as STYLE & BEAUTY (151).
-ARTS, ARTS & CULTURE and CULTURE & ARTS are mixed with each other, as are THE WORLDPOST, WORLDPOST and WORLD NEWS.
-Large classes (POLITICS, ENTERTAINMENT, WELLNESS) absorb many errors from small classes.
+![Median headline and description length by category](Images/median_length_by_category.png)
 
-Strongest classes (F1 around 0.75 to 0.80) include STYLE & BEAUTY, WEDDINGS, POLITICS, DIVORCE, HOME & LIVING and TRAVEL. Weakest ones include U.S. NEWS, ARTS, ARTS & CULTURE, WOMEN and HEALTHY LIVING.
+### 5.6 URL and Text Quality Checks
 
-Misclassified examples for each model are exported to CSV (see Output Files).
+The notebook checked for URL-like text in headlines and descriptions, removed URLs, collapsed repeated whitespace, and trimmed leading or trailing spaces.
 
-Key Takeaways and Limitations
-A simple TF-IDF + linear model reaches about 62% accuracy on 42 classes, versus 17% for the majority baseline.
-Accuracy alone is misleading here because of class imbalance, so macro F1 is the more honest metric (0.49 for the best model).
-The description adds useful signal over the headline alone.
-Several categories are near-duplicates in meaning (PARENTS vs PARENTING, WORLDPOST vs THE WORLDPOST, and the arts categories). This puts a ceiling on how well any text-only model can do. Merging them would likely raise scores.
-Logistic Regression did not fully converge in 200 iterations (a ConvergenceWarning was raised), so a higher max_iter might help slightly.
-No hyperparameter search or class weighting was used. Both are natural next steps, along with transformer-based models.
-The category labels are single-label, but some articles plausibly fit more than one category.
-How to Run
-bash
-git clone <your-repo-url>
-cd <your-repo>
-pip install pandas numpy scikit-learn matplotlib jupyter
-# place News_Category_Dataset_v3.json in the project root
-jupyter notebook News_Category_Project.ipynb
+After cleaning:
 
-Run all cells top to bottom. The cleaning cells must run before the machine-learning cells, since the ML section reuses the cleaned df. Training Logistic Regression takes several minutes on the full data.
+- Empty cleaned headlines: 0
+- Empty cleaned descriptions: 19,605
 
-Output Files
+The cleaned text columns were used in the later machine-learning workflow.
 
-Running the notebook writes these files:
+## 6. Text Preprocessing
 
-File	Contents
-naive_bayes_tfidf_results.csv, logistic_regression_tfidf_results.csv, linear_svm_tfidf_results.csv	Per-model metrics
-final_model_comparison.csv, evaluation_metrics_all_models.csv	Model comparison tables
-majority_class_baseline.csv	Baseline scores
-headline_vs_description_metrics.csv	Input-text extension results
-top_tfidf_terms_by_category.csv	Top 10 TF-IDF terms per category
-best_model_confusion_matrix.csv	Confusion matrix of the best model
-*_misclassified_*.csv	Up to 1,000 misclassified examples per model
+The preprocessing workflow included:
+
+1. Converting headlines and descriptions to lowercase.
+2. Checking for URL-like strings.
+3. Removing URLs using regular expressions.
+4. Collapsing repeated whitespace.
+5. Trimming leading and trailing whitespace.
+6. Filling missing cleaned text values with empty strings for model preparation.
+7. Removing rows without a category or a usable cleaned headline from the machine-learning dataframe.
+8. Combining the cleaned headline and description into a single text field for the main model input.
+
+The final model input was constructed by joining `headline_clean` and `description_clean`.
+
+## 7. Train-Test Split
+
+The data was split into training and testing subsets using `train_test_split()`.
+
+| Parameter | Value |
+|---|---:|
+| Test size | 20% |
+| Training rows | 166,481 |
+| Testing rows | 41,621 |
+| Random state | 42 |
+| Stratification | Enabled |
+
+Stratification was used to preserve the category proportions in the training and testing subsets.
+
+## 8. TF-IDF Feature Extraction
+
+TF-IDF (Term Frequency–Inverse Document Frequency) was used to convert the combined text into numerical features.
+
+The main vectorizer configuration was:
+
+| Parameter | Value | Purpose |
+|---|---|---|
+| `lowercase` | `True` | Converts text to lowercase |
+| `strip_accents` | `"unicode"` | Removes Unicode accents |
+| `stop_words` | `"english"` | Removes English stop words |
+| `ngram_range` | `(1, 2)` | Uses unigrams and bigrams |
+| `min_df` | `2` | Ignores terms appearing in fewer than two documents |
+| `max_df` | `0.98` | Ignores terms appearing in more than 98% of documents |
+| `max_features` | `100000` | Limits the vocabulary to 100,000 features |
+| `sublinear_tf` | `True` | Applies sublinear term-frequency scaling |
+| `dtype` | `np.float32` | Uses 32-bit floating-point feature values |
+
+The resulting matrices were:
+
+- Training TF-IDF matrix: `(166481, 100000)`
+- Testing TF-IDF matrix: `(41621, 100000)`
+- Vocabulary size: 100,000 features
+
+The vectorizer was fitted on the training text and then used to transform the test text.
+
+## 9. Machine Learning Models
+
+Three classifiers were trained using the TF-IDF features.
+
+### 9.1 Multinomial Naive Bayes
+
+Multinomial Naive Bayes was used as a probabilistic baseline for multi-class text classification.
+
+Main parameter:
+
+- `alpha = 0.5`
+
+### 9.2 Logistic Regression
+
+Logistic Regression was trained to predict one of the 42 news categories.
+
+Main parameters:
+
+- `C = 4.0`
+- `solver = "lbfgs"`
+- `max_iter = 200`
+- `random_state = 42`
+
+The notebook recorded a convergence warning because the iteration limit was reached during fitting. This should be kept in mind when interpreting the result.
+
+### 9.3 Linear Support Vector Machine
+
+Linear SVM was trained using `LinearSVC`.
+
+Main parameters:
+
+- `C = 1.0`
+- `max_iter = 5000`
+- `random_state = 42`
+
+## 10. Model Evaluation
+
+The models were evaluated on the same held-out test set using:
+
+- **Accuracy:** Overall fraction of correct predictions.
+- **Macro Precision:** Precision calculated separately for each category and averaged equally.
+- **Macro Recall:** Recall calculated separately for each category and averaged equally.
+- **Macro F1:** F1-score calculated separately for each category and averaged equally.
+- **Weighted F1:** F1-score averaged using each category's support as its weight.
+
+### 10.1 Model Comparison
+
+The recorded test-set results were:
+
+| Model | Accuracy | Macro Precision | Macro Recall | Macro F1 | Weighted F1 |
+|---|---:|---:|---:|---:|---:|
+| Logistic Regression | **0.6219** | 0.5571 | 0.4571 | **0.4891** | **0.6046** |
+| Linear SVM | 0.6156 | 0.5277 | **0.4601** | 0.4832 | 0.5998 |
+| Multinomial Naive Bayes | 0.4853 | **0.6040** | 0.1999 | 0.2119 | 0.3947 |
+
+Logistic Regression achieved the highest accuracy, macro F1, and weighted F1 among the three models. Linear SVM had a slightly higher macro recall. Multinomial Naive Bayes had the highest macro precision but substantially lower macro recall and macro F1.
+
+Based on the macro F1 score, **Logistic Regression was selected for the detailed final error analysis**.
+
+### 10.2 Confusion Matrix — Multinomial Naive Bayes
+
+The confusion matrix shows how often each actual category was predicted as each category. The diagonal cells represent correct classifications, while off-diagonal cells represent misclassifications.
+
+![Confusion matrix for Multinomial Naive Bayes](Images/confusion_matrix_naive_bayes.png)
+
+### 10.3 Confusion Matrix — Logistic Regression
+
+The confusion matrix provides a category-by-category view of Logistic Regression's predictions.
+
+![Confusion matrix for Logistic Regression](Images/confusion_matrix_logistic_regression.png)
+
+### 10.4 Confusion Matrix — Linear SVM
+
+The Linear SVM confusion matrix shows the distribution of correct predictions and category-level errors.
+
+![Confusion matrix for Linear SVM](Images/confusion_matrix_linear_svm.png)
+
+### 10.5 Final Selected Model Confusion Matrix
+
+The final evaluation selected Logistic Regression based on its macro F1 score. Its confusion matrix is shown below.
+
+![Confusion matrix for the best model in final evaluation](Images/confusion_matrix_best_model_final_evaluation.png)
+
+## 11. Error Analysis
+
+Error analysis was performed by comparing the actual category with the predicted category for each test example.
+
+The notebook recorded the following number of incorrect predictions:
+
+| Model | Incorrect predictions | Test examples |
+|---|---:|---:|
+| Multinomial Naive Bayes | 21,424 | 41,621 |
+| Logistic Regression | 15,737 | 41,621 |
+| Linear SVM | 15,998 | 41,621 |
+
+For the selected Logistic Regression model, **15,737 of 41,621 test examples** were misclassified.
+
+Misclassified examples were exported to CSV files for further inspection. This allows headlines and descriptions to be examined alongside their actual and predicted categories.
+
+The confusion matrices and misclassified examples help identify which categories are most often confused. This is particularly important in a 42-class task with uneven category frequencies.
+
+## 12. Headline-Only vs Headline + Description Experiment
+
+An additional experiment compared two text-input settings:
+
+1. Headline only
+2. Headline combined with short description
+
+The same 80/20 train-test split was used. TF-IDF and the three classifiers were evaluated for both text-input settings.
+
+### 12.1 Results
+
+| Model | Text input | Accuracy | Macro F1 | Weighted F1 |
+|---|---|---:|---:|---:|
+| Logistic Regression | Headline + description | **0.6219** | **0.4891** | **0.6046** |
+| Linear SVM | Headline + description | 0.6156 | 0.4832 | 0.5998 |
+| Logistic Regression | Headline only | 0.5919 | 0.4650 | 0.5748 |
+| Linear SVM | Headline only | 0.5875 | 0.4570 | 0.5723 |
+| Multinomial Naive Bayes | Headline + description | 0.4853 | 0.2119 | 0.3947 |
+| Multinomial Naive Bayes | Headline only | 0.4645 | 0.2096 | 0.3807 |
+
+For all three classifiers, the combined headline-and-description input achieved higher accuracy and macro F1 than headline-only input in this experiment.
+
+This suggests that the short description provides additional information useful for predicting the news category.
+
+## 13. Key Findings
+
+1. The cleaned dataset contained 208,102 records across 42 news categories.
+2. POLITICS was the most frequent category, while EDUCATION was the least frequent.
+3. The dataset showed category imbalance, with the largest category accounting for approximately 17.05% of records.
+4. The median headline length was 10 words, while the median short-description length was 19 words.
+5. TF-IDF represented the text using up to 100,000 unigram and bigram features.
+6. Logistic Regression achieved the highest accuracy (0.6219) and macro F1 (0.4891) among the three main models.
+7. The headline-plus-description experiment outperformed headline-only input for all three classifiers on the reported metrics.
+8. Error analysis showed that a substantial number of test examples were assigned an incorrect category, highlighting the difficulty of fine-grained multi-class news classification.
+
+## 14. Limitations and Responsible Interpretation
+
+- The dataset contains 42 categories with unequal numbers of examples.
+- Overall accuracy alone does not describe performance equally across all categories; macro-averaged metrics are also important.
+- Some categories have relatively few training examples, which can make them harder to classify.
+- Logistic Regression reached its configured iteration limit and produced a convergence warning in the notebook.
+- The model predicts dataset categories based on text patterns. It does not verify the factual accuracy of a news article.
+- Results on this held-out test split do not guarantee the same performance on other news sources or future data.
+
+## 15. Technologies and Libraries Used
+
+- Python
+- Jupyter Notebook
+- Pandas
+- NumPy
+- Matplotlib
+- Scikit-learn
+- Regular Expressions (`re`)
+- TF-IDF Vectorization
+- Multinomial Naive Bayes
+- Logistic Regression
+- Linear Support Vector Machine
+
+## 16. Repository Structure
+
+```text
+News-Category-Classification-Project/
+│
+├── News_Category_Project(1).ipynb
+├── README.md
+└── Images/
+    ├── category_distribution_clean.png
+    ├── category_distribution_raw.png.png
+    ├── confusion_matrix_best_model_final_evaluation.png
+    ├── confusion_matrix_linear_svm.png
+    ├── confusion_matrix_logistic_regression.png
+    ├── confusion_matrix_naive_bayes.png
+    ├── headline_length_histogram.png
+    └── median_length_by_category.png
+```
+
+The dataset file `News_Category_Dataset_v3.json` is not included in the image archive. It must be obtained separately and placed at the path expected by the notebook.
+
+## 17. How to Run the Project
+
+1. Clone or download the repository:
+
+```bash
+git clone <your-repository-link>
+```
+
+2. Install the required libraries:
+
+```bash
+pip install pandas numpy matplotlib scikit-learn jupyter
+```
+
+3. Obtain `News_Category_Dataset_v3.json` and place it in the working directory expected by the notebook.
+
+4. Open the notebook:
+
+```bash
+jupyter notebook
+```
+
+5. Open `News_Category_Project(1).ipynb` and run the cells in sequence, starting with data loading and EDA, followed by preprocessing, TF-IDF, model training, evaluation, and error analysis.
+
+## 18. Conclusion
+
+This project explored multi-class news category classification using NLP and machine learning. The workflow included data cleaning, exploratory analysis, text preprocessing, TF-IDF feature extraction, training three classifiers, model comparison, confusion-matrix analysis, and inspection of misclassified examples.
+
+Among the three main classifiers, Logistic Regression achieved the strongest overall result by accuracy and macro F1 on the held-out test set. The additional headline-only versus headline-plus-description experiment showed that including the short description improved the reported performance for all three classifiers.
+
+The project provided practical experience with a large text dataset, imbalanced multi-class classification, model evaluation, and responsible interpretation of machine-learning predictions.
